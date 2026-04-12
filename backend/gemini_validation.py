@@ -52,7 +52,6 @@ def _locations_for_request() -> list[str]:
         start_index = _region_cursor % len(locations)
         _region_cursor += 1
 
-    # Rotate so each request starts with a different region.
     return locations[start_index:] + locations[:start_index]
 
 
@@ -80,37 +79,47 @@ def _get_gemini_client(location: str):
         return client
 
 
-def _generate_content_with_failover(prompt: str):
+def _format_recipe_label(recipe_index: Optional[int], recipe_title: str) -> str:
+    label = f'#{recipe_index}' if recipe_index is not None else '#?'
+    return f'{label} {recipe_title}'.strip()
+
+
+def _generate_content_with_failover(prompt: str, recipe_index: Optional[int] = None, recipe_title: str = ''):
     locations = _locations_for_request()
     if not locations:
         raise GeminiValidationUnavailableError('Gemini validation is unavailable (no configured regions).')
 
     rounds = max(1, GEMINI_REGION_ROTATION_MAX_ROUNDS)
     delay_seconds = max(0, GEMINI_REGION_ROTATION_DELAY_SECONDS)
+    recipe_label = _format_recipe_label(recipe_index, recipe_title)
 
     for round_index in range(rounds):
         for location in locations:
             try:
                 client = _get_gemini_client(location)
+                with LOG_LOCK:
+                    print(f'[GEMINI][{recipe_label}][{location}] attempt')
                 return client.models.generate_content(
-                    model=GEMINI_MODEL,
+                    model=GEMINI_MODEL, 
                     contents=prompt,
                 )
             except Exception as exc:
                 message = str(exc)
                 if _is_quota_error(message):
-                    print(f'[GEMINI] quota exhausted in {location}; trying next region')
+                    print(f'❌ [GEMINI][{recipe_label}][{location}] quota exhausted; trying next region')
                     continue
 
+                print(f'❌ [GEMINI][{recipe_label}][{location}] error: {message}')
                 raise GeminiValidationUnavailableError(
                     f'Gemini validation failed in {location}: {message}'
                 ) from exc
 
         if round_index < rounds - 1 and delay_seconds > 0:
-            print(f'[GEMINI] all regions exhausted, waiting {delay_seconds}s before retrying')
+            print(f'❌ [GEMINI][{recipe_label}] all regions exhausted, waiting {delay_seconds}s before retrying')
             time.sleep(delay_seconds)
 
     attempted_regions = ', '.join(locations)
+    print(f'❌ [GEMINI][{recipe_label}] exhausted regions: {attempted_regions}')
     raise GeminiValidationUnavailableError(
         'Gemini quota exhausted across all configured regions '
         f'({attempted_regions}). Please try again shortly.'
@@ -118,6 +127,7 @@ def _generate_content_with_failover(prompt: str):
 
 
 def validate_recipe_with_gemini(
+    recipe_index: Optional[int],
     recipe_title: str,
     ingredients: Optional[str],
     dietary_restrictions: Optional[List[str]],
@@ -180,20 +190,21 @@ def validate_recipe_with_gemini(
             ])
 
         prompt = '\n'.join(prompt_lines)
+        recipe_label = _format_recipe_label(recipe_index, recipe_title)
 
         with LOG_LOCK:
-            print(f'\n[GEMINI] {recipe_title}')
-            print(f'[INGREDIENTS] {ingredients}')
-            print(f"[FILTERS] Allergies: {allergies or 'none'} | Dietary: {dietary_restrictions or 'none'}")
-            print(f"[EXCLUDED] {excluded_ingredients or 'none'}")
+            print(f'\n[GEMINI][{recipe_label}]')
+            print(f'[INGREDIENTS][{recipe_label}] {ingredients}')
+            print(f"[FILTERS][{recipe_label}] Allergies: {allergies or 'none'} | Dietary: {dietary_restrictions or 'none'}")
+            print(f"[EXCLUDED][{recipe_label}] {excluded_ingredients or 'none'}")
 
-        response = _generate_content_with_failover(prompt)
+        response = _generate_content_with_failover(prompt, recipe_index=recipe_index, recipe_title=recipe_title)
 
         response_text = (response.text or '').strip().lower()
         lines = response_text.split('\n')
 
         with LOG_LOCK:
-            print(f'[RESULT][{recipe_title}] {response_text[:100]}')
+            print(f'[RESULT][{recipe_label}] {response_text[:100]}')
 
         is_valid = 'yes' in lines[0]
 
@@ -211,7 +222,8 @@ def validate_recipe_with_gemini(
             raise
 
         message = str(exc)
-        print(f'[ERROR] {message}')
+        recipe_label = _format_recipe_label(recipe_index, recipe_title)
+        print(f'❌ [ERROR][{recipe_label}] {message}')
         if _is_quota_error(message):
             raise GeminiValidationUnavailableError('Gemini validation service is temporarily busy.') from exc
         raise GeminiValidationUnavailableError('Gemini validation failed.') from exc
@@ -247,6 +259,7 @@ def validate_recipes_with_gemini_parallel(
         future_to_index = {
             executor.submit(
                 validate_recipe_with_gemini,
+                recipe.get('index'),
                 recipe.get('title') or '',
                 recipe.get('ingredients') or '',
                 dietary_restrictions,
@@ -261,7 +274,7 @@ def validate_recipes_with_gemini_parallel(
             try:
                 results[index] = future.result()
             except Exception as exc:
-                print(f'[GEMINI PARALLEL ERROR] index={index} error={exc}')
+                print(f'❌ [GEMINI PARALLEL ERROR] index={index} error={exc}')
                 validation_errors.append(f'index={index}: {exc}')
 
     if validation_errors:
@@ -270,9 +283,6 @@ def validate_recipes_with_gemini_parallel(
         raise GeminiValidationUnavailableError('Gemini validation failed during parallel checks.')
 
     return results
-
-
-
 
 
 def validate_recipes_with_gemini_parallel_stream(
@@ -302,6 +312,7 @@ def validate_recipes_with_gemini_parallel_stream(
         future_to_index = {
             executor.submit(
                 validate_recipe_with_gemini,
+                recipe.get('index'),
                 recipe.get('title') or '',
                 recipe.get('ingredients') or '',
                 dietary_restrictions,
@@ -316,7 +327,7 @@ def validate_recipes_with_gemini_parallel_stream(
             try:
                 yield index, future.result()
             except Exception as exc:
-                print(f'[GEMINI PARALLEL STREAM ERROR] index={index} error={exc}')
+                print(f'❌ [GEMINI PARALLEL STREAM ERROR] index={index} error={exc}')
                 validation_errors.append(f'index={index}: {exc}')
 
     if validation_errors:
