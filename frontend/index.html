@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ramsay AI</title>
+    <link rel="stylesheet" href="/frontend/styles.css" />
+    <script defer src="/frontend/app.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Ramsay AI</p>
+        <h1>Find recipes by ingredients</h1>
+        <p class="lede">
+          Select your food preferences. The app searches Allrecipes and shows matching results.
+        </p>
+      </section>
+
+      <section class="panel">
+        <form id="search-form" class="search-form">
+          <div class="ingredients-section">
+            <label>Ingredients (common picks):</label>
+            <div class="ingredient-options">
+              <label>
+                <input type="checkbox" name="chicken" value="chicken" />
+                Chicken
+              </label>
+              <label>
+                <input type="checkbox" name="beef" value="beef" />
+                Beef
+              </label>
+              <label>
+                <input type="checkbox" name="tofu" value="tofu" />
+                Tofu
+              </label>
+              <label>
+                <input type="checkbox" name="eggs" value="eggs" />
+                Eggs
+              </label>
+              <label>
+                <input type="checkbox" name="pasta" value="pasta" />
+                Pasta
+              </label>
+              <label>
+                <input type="checkbox" name="rice" value="rice" />
+                Rice
+              </label>
+              <label>
+                <input type="checkbox" name="potato" value="potato" />
+                Potato
+              </label>
+              <label>
+                <input type="checkbox" name="tomato" value="tomato" />
+                Tomato
+              </label>
+              <label>
+                <input type="checkbox" name="garlic" value="garlic" />
+                Garlic
+              </label>
+              <label>
+                <input type="checkbox" name="onion" value="onion" />
+                Onion
+              </label>
+              <label>
+                <input type="checkbox" name="spinach" value="spinach" />
+                Spinach
+              </label>
+              <label>
+                <input type="checkbox" name="mushroom" value="mushroom" />
+                Mushroom
+              </label>
+              <label>
+                <input type="checkbox" name="cheese" value="cheese" />
+                Cheese
+              </label>
+              <label>
+                <input type="checkbox" name="beans" value="beans" />
+                Beans
+              </label>
+            </div>
+            <label>Custom Ingredients:
+              <div class="custom-entry-row">
+                <input type="text" id="custom-ingredient-input" name="custom-ingredient-input" placeholder="Type ingredient and press Enter or +" />
+                <button type="button" id="add-custom-ingredient" class="icon-button" aria-label="Add custom ingredient">+</button>
+              </div>
+            </label>
+            <div id="custom-ingredients-list" class="custom-tags" aria-live="polite"></div>
+          </div>
+
+          <div class="dietary-filters">
+            <label>Dietary Restrictions:</label>
+            <div class="filter-options">
+              <label>
+                <input type="checkbox" name="vegan" value="vegan" />
+                Vegan
+              </label>
+              <label>
+                <input type="checkbox" name="vegetarian" value="vegetarian" />
+                Vegetarian
+              </label>
+              <label>
+                <input type="checkbox" name="halal" value="halal" />
+                Halal
+              </label>
+              <label>
+                <input type="checkbox" name="kosher" value="kosher" />
+                Kosher
+              </label>
+            </div>
+            <label>Custom Dietary Restrictions:
+              <div class="custom-entry-row">
+                <input type="text" id="custom-dietary-input" name="custom-dietary-input" placeholder="Type restriction and press Enter or +" />
+                <button type="button" id="add-custom-dietary" class="icon-button" aria-label="Add custom dietary restriction">+</button>
+              </div>
+            </label>
+            <div id="custom-dietary-list" class="custom-tags" aria-live="polite"></div>
+          </div>
+
+          <div class="exclude-section">
+            <label>Exclude Ingredients:</label>
+            <label>Add ingredients to exclude:
+              <div class="custom-entry-row">
+                <input type="text" id="excluded-ingredient-input" name="excluded-ingredient-input" placeholder="Type ingredient and press Enter or +" />
+                <button type="button" id="add-excluded-ingredient" class="icon-button" aria-label="Add excluded ingredient">+</button>
+              </div>
+            </label>
+            <div id="excluded-ingredients-list" class="custom-tags" aria-live="polite"></div>
+          </div>
+
+          <div class="allergies-section">
+            <label>Allergies & Restrictions:</label>
+            <div class="filter-options">
+              <label>
+                <input type="checkbox" name="peanuts" value="peanuts" />
+                Peanuts
+              </label>
+              <label>
+                <input type="checkbox" name="tree-nuts" value="tree-nuts" />
+                Tree Nuts
+              </label>
+              <label>
+                <input type="checkbox" name="milk" value="milk" />
+                Milk
+              </label>
+              <label>
+                <input type="checkbox" name="eggs" value="eggs" />
+                Eggs
+              </label>
+              <label>
+                <input type="checkbox" name="soy" value="soy" />
+                Soy
+              </label>
+              <label>
+                <input type="checkbox" name="shellfish" value="shellfish" />
+                Shellfish
+              </label>
+              <label>
+                <input type="checkbox" name="gluten" value="gluten" />
+                Gluten
+              </label>
+              <label>
+                <input type="checkbox" name="dairy" value="dairy" />
+                Dairy
+              </label>
+            </div>
+            <label>Custom Allergies:
+              <div class="custom-entry-row">
+                <input type="text" id="custom-allergy-input" name="custom-allergy-input" placeholder="Type allergy and press Enter or +" />
+                <button type="button" id="add-custom-allergy" class="icon-button" aria-label="Add custom allergy">+</button>
+              </div>
+            </label>
+            <div id="custom-allergies-list" class="custom-tags" aria-live="polite"></div>
+          </div>
+
+          <div class="controls">
+            <label>
+              Max results
+              <input id="max-results" name="max-results" type="number" min="1" max="50" value="10" />
+            </label>
+
+            <button id="search-button" type="submit">Search recipes</button>
+          </div>
+          <p class="hint">Recipes are validated with AI to ensure they include the ingredients, match your dietary preferences, and don't contain your allergens or excluded ingredients.</p>
+        </form>
+      </section>
+
+      <section class="results-section">
+        <div class="results-header">
+          <h2>Results</h2>
+          <p id="status">Enter ingredients to begin.</p>
+        </div>
+
+        <div id="results" class="results-grid"></div>
+      </section>
+    </main>
+  </body>
+</html>

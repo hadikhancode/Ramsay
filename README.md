@@ -1,15 +1,16 @@
 # Ramsay
-Project: a program that will give you recipes based on the ingredients you give it
+A web app that shows recipes based on selected food preferences using Gemini AI and AllRecipes
 
-Websites with recipes (use web scraping and feed these into gemini ai)
-Have user input their ingredients and the time they have and the occasions (gemini ai/featherless ai take these inputs and verify it with the recipes) 
- include a option where they could select a specific cuisines (like italian, chinese, american,etc)
-Bonus include the rating of the recipes and the website link to the recipes
+---
 
-So far:
-- We have a framework for webscraping using Custom Search Engine API
-
-To-do:
+### To-do
 - "in-depth" Chat/assistant
-- Ratings
-~ *remix*
+- Set occasions (dinner party, etc.)
+- Set cuisines (italian, chinese, etc.)
+- Set type of food (baking, meal, small snack, etc.)
+
+### Build Instructions:
+- Install gcloud
+- pip install -r requirements.txt
+- gcloud auth application-default login
+- py backend/main.py
