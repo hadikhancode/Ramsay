@@ -12,7 +12,7 @@ from config import APP_PORT, API_MAX_RESULTS_DEFAULT, API_MAX_RESULTS_MAX, API_M
 from gemini_validation import GeminiValidationUnavailableError
 from scraper import get_recipe_context, search_allrecipes, search_allrecipes_stream
 
-app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="/frontend")
+app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 
 QUOTA_RETRY_DELAY_SECONDS = 3
 QUOTA_RETRY_ATTEMPTS = 2
