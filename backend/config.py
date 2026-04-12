@@ -39,7 +39,8 @@ GEMINI_LOCATIONS = (
     'asia-south1',
     'australia-southeast1'
 )
-GEMINI_REGION_ROTATION_MAX_ROUNDS = 2
+# Set to 0 for unlimited rotation rounds.
+GEMINI_REGION_ROTATION_MAX_ROUNDS = 0
 GEMINI_REGION_ROTATION_DELAY_SECONDS = 3
 
 BASE_DIR = Path(__file__).resolve().parent.parent

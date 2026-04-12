@@ -117,6 +117,125 @@
             <div id="custom-dietary-list" class="custom-tags" aria-live="polite"></div>
           </div>
 
+          <div class="cuisine-section">
+            <label>Cuisine:</label>
+            <div class="filter-options">
+              <label>
+                <input type="checkbox" name="cuisine-italian" value="italian" />
+                Italian
+              </label>
+              <label>
+                <input type="checkbox" name="cuisine-chinese" value="chinese" />
+                Chinese
+              </label>
+              <label>
+                <input type="checkbox" name="cuisine-mexican" value="mexican" />
+                Mexican
+              </label>
+              <label>
+                <input type="checkbox" name="cuisine-american" value="american" />
+                American
+              </label>
+              <label>
+                <input type="checkbox" name="cuisine-indian" value="indian" />
+                Indian
+              </label>
+              <label>
+                <input type="checkbox" name="cuisine-japanese" value="japanese" />
+                Japanese
+              </label>
+              <label>
+                <input type="checkbox" name="cuisine-thai" value="thai" />
+                Thai
+              </label>
+              <label>
+                <input type="checkbox" name="cuisine-french" value="french" />
+                French
+              </label>
+            </div>
+            <label>Custom Cuisines:
+              <div class="custom-entry-row">
+                <input type="text" id="custom-cuisine-input" name="custom-cuisine-input" placeholder="Type cuisine and press Enter or +" />
+                <button type="button" id="add-custom-cuisine" class="icon-button" aria-label="Add custom cuisine">+</button>
+              </div>
+            </label>
+            <div id="custom-cuisines-list" class="custom-tags" aria-live="polite"></div>
+          </div>
+
+          <div class="event-section">
+            <label>Event:</label>
+            <div class="filter-options">
+              <label>
+                <input type="checkbox" name="event-dinner-party" value="dinner party" />
+                Dinner Party
+              </label>
+              <label>
+                <input type="checkbox" name="event-birthday" value="birthday" />
+                Birthday
+              </label>
+              <label>
+                <input type="checkbox" name="event-holiday" value="holiday" />
+                Holiday
+              </label>
+              <label>
+                <input type="checkbox" name="event-bbq" value="bbq" />
+                BBQ
+              </label>
+              <label>
+                <input type="checkbox" name="event-potluck" value="potluck" />
+                Potluck
+              </label>
+              <label>
+                <input type="checkbox" name="event-brunch" value="brunch" />
+                Brunch
+              </label>
+            </div>
+            <label>Custom Events:
+              <div class="custom-entry-row">
+                <input type="text" id="custom-event-input" name="custom-event-input" placeholder="Type event and press Enter or +" />
+                <button type="button" id="add-custom-event" class="icon-button" aria-label="Add custom event">+</button>
+              </div>
+            </label>
+            <div id="custom-events-list" class="custom-tags" aria-live="polite"></div>
+          </div>
+
+          <div class="food-type-section">
+            <label>Food Type:</label>
+            <div class="filter-options">
+              <label>
+                <input type="checkbox" name="food-type-dessert" value="dessert" />
+                Dessert
+              </label>
+              <label>
+                <input type="checkbox" name="food-type-meal" value="meal" />
+                Meal
+              </label>
+              <label>
+                <input type="checkbox" name="food-type-baking" value="baking" />
+                Baking
+              </label>
+              <label>
+                <input type="checkbox" name="food-type-cake" value="cake" />
+                Cake
+              </label>
+              <label>
+                <input type="checkbox" name="food-type-snack" value="snack" />
+                Snack
+              </label>
+              <label>
+                <input type="checkbox" name="food-type-drink" value="drink" />
+                Drink
+              </label>
+            </div>
+            <label>Custom Food Types:
+              <div class="custom-entry-row">
+                <input type="text" id="custom-food-type-input" name="custom-food-type-input" placeholder="Type food type and press Enter or +" />
+                <button type="button" id="add-custom-food-type" class="icon-button" aria-label="Add custom food type">+</button>
+              </div>
+            </label>
+            <div id="custom-food-types-list" class="custom-tags" aria-live="polite"></div>
+          </div>
+
           <div class="exclude-section">
             <label>Exclude Ingredients:</label>
             <label>Add ingredients to exclude:
@@ -173,6 +292,25 @@
             <div id="custom-allergies-list" class="custom-tags" aria-live="polite"></div>
           </div>
 
+          <div class="complexity-section">
+            <label>Recipe Complexity:</label>
+            <div class="filter-options complexity-options">
+              <label>
+                <input type="radio" name="recipe-complexity" value="simple" />
+                Simple
+              </label>
+              <label>
+                <input type="radio" name="recipe-complexity" value="intermediate" />
+                Intermediate
+              </label>
+              <label>
+                <input type="radio" name="recipe-complexity" value="complex" />
+                Complex
+              </label>
+            </div>
+            <button type="button" id="clear-complexity" class="secondary-button">Clear complexity</button>
+          </div>
+
           <div class="controls">
             <label>
               Max results
@@ -186,12 +324,34 @@
       </section>
 
       <section class="results-section">
-        <div class="results-header">
-          <h2>Results</h2>
-          <p id="status">Enter ingredients to begin.</p>
-        </div>
+        <div class="results-chat-layout">
+          <div class="results-pane">
+            <div class="results-header">
+              <h2>Results</h2>
+              <p id="status">Enter ingredients to begin.</p>
+            </div>
 
-        <div id="results" class="results-grid"></div>
+            <div id="results" class="results-grid"></div>
+          </div>
+
+          <aside class="chat-pane">
+            <div class="chat-header">
+              <h3>Ask Ramsay</h3>
+              <p id="selected-recipe-label">No recipe selected.</p>
+            </div>
+            <div id="chat-messages" class="chat-messages" aria-live="polite">
+              <div class="chat-empty">Select one recipe card, then ask Ramsay about it.</div>
+            </div>
+            <form id="chat-form" class="chat-form">
+              <label for="chat-input">Question</label>
+              <textarea id="chat-input" rows="3" placeholder="Chef Ramsay, how should I prep this recipe?"></textarea>
+              <div class="chat-actions">
+                <button type="submit" id="chat-send">Send</button>
+                <button type="button" id="chat-clear" class="secondary-button">Clear</button>
+              </div>
+            </form>
+          </aside>
+        </div>
       </section>
     </main>
   </body>

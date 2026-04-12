@@ -9,17 +9,39 @@ const customIngredientsListEl = document.getElementById('custom-ingredients-list
 const customDietaryInput = document.getElementById('custom-dietary-input');
 const addCustomDietaryButton = document.getElementById('add-custom-dietary');
 const customDietaryListEl = document.getElementById('custom-dietary-list');
+const customCuisineInput = document.getElementById('custom-cuisine-input');
+const addCustomCuisineButton = document.getElementById('add-custom-cuisine');
+const customCuisinesListEl = document.getElementById('custom-cuisines-list');
+const customEventInput = document.getElementById('custom-event-input');
+const addCustomEventButton = document.getElementById('add-custom-event');
+const customEventsListEl = document.getElementById('custom-events-list');
+const customFoodTypeInput = document.getElementById('custom-food-type-input');
+const addCustomFoodTypeButton = document.getElementById('add-custom-food-type');
+const customFoodTypesListEl = document.getElementById('custom-food-types-list');
 const customAllergyInput = document.getElementById('custom-allergy-input');
 const addCustomAllergyButton = document.getElementById('add-custom-allergy');
 const customAllergiesListEl = document.getElementById('custom-allergies-list');
 const excludedIngredientInput = document.getElementById('excluded-ingredient-input');
 const addExcludedIngredientButton = document.getElementById('add-excluded-ingredient');
 const excludedIngredientsListEl = document.getElementById('excluded-ingredients-list');
+const clearComplexityButton = document.getElementById('clear-complexity');
+const selectedRecipeLabelEl = document.getElementById('selected-recipe-label');
+const chatMessagesEl = document.getElementById('chat-messages');
+const chatForm = document.getElementById('chat-form');
+const chatInput = document.getElementById('chat-input');
+const chatSendButton = document.getElementById('chat-send');
+const chatClearButton = document.getElementById('chat-clear');
 
 let customIngredients = [];
 let customDietary = [];
+let customCuisines = [];
+let customEvents = [];
+let customFoodTypes = [];
 let customAllergies = [];
 let excludedIngredients = [];
+let latestResults = [];
+let selectedRecipe = null;
+let chatHistory = [];
 
 function escapeHtml(value) {
   return value
@@ -83,6 +105,9 @@ function createTagRenderer(listGetter, targetEl, dataKey) {
 }
 
 const renderCustomDietaryTags = createTagRenderer(() => customDietary, customDietaryListEl, 'dietary');
+const renderCustomCuisineTags = createTagRenderer(() => customCuisines, customCuisinesListEl, 'cuisine');
+const renderCustomEventTags = createTagRenderer(() => customEvents, customEventsListEl, 'event');
+const renderCustomFoodTypeTags = createTagRenderer(() => customFoodTypes, customFoodTypesListEl, 'food-type');
 const renderCustomAllergyTags = createTagRenderer(() => customAllergies, customAllergiesListEl, 'allergy');
 const renderExcludedIngredientTags = createTagRenderer(() => excludedIngredients, excludedIngredientsListEl, 'excluded');
 
@@ -97,6 +122,24 @@ const addCustomDietary = createAddItemHandler(
   () => customDietary,
   (next) => { customDietary = next; },
   renderCustomDietaryTags
+);
+const addCustomCuisine = createAddItemHandler(
+  customCuisineInput,
+  () => customCuisines,
+  (next) => { customCuisines = next; },
+  renderCustomCuisineTags
+);
+const addCustomEvent = createAddItemHandler(
+  customEventInput,
+  () => customEvents,
+  (next) => { customEvents = next; },
+  renderCustomEventTags
+);
+const addCustomFoodType = createAddItemHandler(
+  customFoodTypeInput,
+  () => customFoodTypes,
+  (next) => { customFoodTypes = next; },
+  renderCustomFoodTypeTags
 );
 const addCustomAllergy = createAddItemHandler(
   customAllergyInput,
@@ -129,6 +172,15 @@ function handleTagRemoval(event) {
   } else if (key === 'dietary' && index < customDietary.length) {
     customDietary.splice(index, 1);
     renderCustomDietaryTags();
+  } else if (key === 'cuisine' && index < customCuisines.length) {
+    customCuisines.splice(index, 1);
+    renderCustomCuisineTags();
+  } else if (key === 'event' && index < customEvents.length) {
+    customEvents.splice(index, 1);
+    renderCustomEventTags();
+  } else if (key === 'food-type' && index < customFoodTypes.length) {
+    customFoodTypes.splice(index, 1);
+    renderCustomFoodTypeTags();
   } else if (key === 'allergy' && index < customAllergies.length) {
     customAllergies.splice(index, 1);
     renderCustomAllergyTags();
@@ -148,6 +200,8 @@ function addOnEnter(inputEl, addFn) {
 }
 
 function renderResults(results) {
+  latestResults = results;
+
   if (!results.length) {
     renderEmpty('No results found. Try broader ingredients or fewer filters.');
     return;
@@ -172,7 +226,7 @@ function renderResults(results) {
   }
 
   resultsEl.innerHTML = results
-    .map((item) => {
+    .map((item, index) => {
       const rating = renderStars(item.rating);
       const count = item.ratings_count ? `${item.ratings_count.toLocaleString()} ratings` : 'No rating count';
       const image = item.image_url
@@ -181,31 +235,160 @@ function renderResults(results) {
 
       const cookTime = item.cook_time ? `<span>${escapeHtml(item.cook_time)}</span>` : '';
 
+      const isSelected = Boolean(selectedRecipe && selectedRecipe.url === item.url);
+
       return `
-        <a class="recipe-card recipe-card-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer" aria-label="Open ${escapeHtml(item.title)}">
-          ${image}
-          <h3>${escapeHtml(item.title)}</h3>
-          <div class="meta">
-            <span>${rating}</span>
-            <span>${escapeHtml(count)}</span>
-            ${cookTime}
+        <article class="recipe-card ${isSelected ? 'recipe-card--selected' : ''}">
+          <div class="recipe-image-wrapper">
+            ${image}
+            <button type="button" class="select-recipe-button" data-select-index="${index}">${isSelected ? 'Selected' : 'Select'}</button>
           </div>
-        </a>
+          <a class="recipe-card-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer" aria-label="Open ${escapeHtml(item.title)}">
+            <h3>${escapeHtml(item.title)}</h3>
+            <div class="meta">
+              <span>${rating}</span>
+              <span>${escapeHtml(count)}</span>
+              ${cookTime}
+            </div>
+          </a>
+        </article>
       `;
     })
     .join('');
+}
+
+function renderChatMessages() {
+  if (!chatHistory.length) {
+    chatMessagesEl.innerHTML = '<div class="chat-empty">Select one recipe card, then ask Ramsay about it.</div>';
+    return;
+  }
+
+  chatMessagesEl.innerHTML = chatHistory
+    .map((entry) => `
+      <div class="chat-bubble chat-bubble--${entry.role}">
+        <strong>${entry.role === 'assistant' ? 'Ramsay' : 'You'}:</strong>
+        <span>${escapeHtml(entry.content)}</span>
+      </div>
+    `)
+    .join('');
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+}
+
+function resetChatForSelection() {
+  chatHistory = [];
+  renderChatMessages();
+}
+
+async function selectRecipeAtIndex(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= latestResults.length) {
+    return;
+  }
+
+  const recipe = latestResults[index];
+  selectedRecipe = {
+    title: recipe.title,
+    url: recipe.url,
+    cook_time: recipe.cook_time || '',
+    ingredients: recipe.ingredients || '',
+    directions: recipe.directions || '',
+  };
+
+  selectedRecipeLabelEl.textContent = `Selected: ${recipe.title}`;
+  renderResults(latestResults);
+  resetChatForSelection();
+
+  try {
+    const detailsUrl = new URL('/api/recipe/context', window.location.origin);
+    detailsUrl.searchParams.set('url', recipe.url);
+    const response = await fetch(detailsUrl);
+    if (!response.ok) {
+      throw new Error('Unable to load recipe details.');
+    }
+    const data = await response.json();
+    selectedRecipe.ingredients = data.ingredients || selectedRecipe.ingredients || '';
+    selectedRecipe.directions = data.directions || selectedRecipe.directions || '';
+    selectedRecipe.cook_time = data.cook_time || selectedRecipe.cook_time || '';
+  } catch (error) {
+    chatHistory.push({ role: 'assistant', content: error.message || 'Could not fetch recipe details yet, Chef.' });
+    renderChatMessages();
+  }
+}
+
+async function sendChatMessage(event) {
+  event.preventDefault();
+
+  const message = chatInput.value.trim();
+  if (!message) {
+    return;
+  }
+
+  if (!selectedRecipe) {
+    chatHistory.push({ role: 'assistant', content: 'Select one recipe first, Chef.' });
+    renderChatMessages();
+    return;
+  }
+
+  chatHistory.push({ role: 'user', content: message });
+  renderChatMessages();
+  chatInput.value = '';
+  chatSendButton.disabled = true;
+
+  try {
+    const response = await fetch('/api/chat/recipe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        recipe: selectedRecipe,
+        history: chatHistory,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || data.details || 'Chat failed.');
+    }
+
+    chatHistory.push({ role: 'assistant', content: data.reply || 'Spot on, Chef.' });
+    renderChatMessages();
+  } catch (error) {
+    chatHistory.push({ role: 'assistant', content: error.message || 'Kitchen comms are down, Chef.' });
+    renderChatMessages();
+  } finally {
+    chatSendButton.disabled = false;
+  }
 }
 
 async function searchRecipes(event) {
   event.preventDefault();
 
   const maxResults = Number(maxResultsInput.value || 10);
+  const selectedComplexityEl = document.querySelector('input[name="recipe-complexity"]:checked');
+  const selectedComplexity = selectedComplexityEl ? selectedComplexityEl.value : '';
 
   // Get selected dietary restrictions
   const dietaryFilters = Array.from(
     document.querySelectorAll('input[name="vegan"]:checked, input[name="vegetarian"]:checked, input[name="halal"]:checked, input[name="kosher"]:checked')
   ).map(checkbox => checkbox.value);
   dietaryFilters.push(...customDietary);
+
+  // Get selected cuisines
+  const cuisineFilters = Array.from(
+    document.querySelectorAll('input[name^="cuisine-"]:checked')
+  ).map((checkbox) => checkbox.value);
+  cuisineFilters.push(...customCuisines);
+
+  // Get selected events
+  const eventFilters = Array.from(
+    document.querySelectorAll('input[name^="event-"]:checked')
+  ).map((checkbox) => checkbox.value);
+  eventFilters.push(...customEvents);
+
+  // Get selected food types
+  const foodTypeFilters = Array.from(
+    document.querySelectorAll('input[name^="food-type-"]:checked')
+  ).map((checkbox) => checkbox.value);
+  foodTypeFilters.push(...customFoodTypes);
 
   // Get selected allergies
   const allergyFilters = Array.from(
@@ -233,6 +416,9 @@ async function searchRecipes(event) {
   searchButton.disabled = true;
   statusEl.textContent = 'Waiting on Gemini AI...';
   resultsEl.innerHTML = '<div class="empty-state">Loading results...</div>';
+  selectedRecipe = null;
+  selectedRecipeLabelEl.textContent = 'No recipe selected.';
+  resetChatForSelection();
 
   try {
     const url = new URL('/api/search/stream', window.location.origin);
@@ -241,11 +427,23 @@ async function searchRecipes(event) {
     if (dietaryFilters.length > 0) {
       url.searchParams.set('dietary_restrictions', dietaryFilters.join(','));
     }
+    if (cuisineFilters.length > 0) {
+      url.searchParams.set('cuisines', cuisineFilters.join(','));
+    }
+    if (eventFilters.length > 0) {
+      url.searchParams.set('events', eventFilters.join(','));
+    }
+    if (foodTypeFilters.length > 0) {
+      url.searchParams.set('food_types', foodTypeFilters.join(','));
+    }
     if (allergyFilters.length > 0) {
       url.searchParams.set('allergies', allergyFilters.join(','));
     }
     if (excludedIngredients.length > 0) {
       url.searchParams.set('excluded_ingredients', excludedIngredients.join(','));
+    }
+    if (selectedComplexity) {
+      url.searchParams.set('complexity', selectedComplexity);
     }
 
     const response = await fetch(url);
@@ -310,6 +508,18 @@ async function searchRecipes(event) {
     if (allergyFilters.length > 0) {
       statusMsg += ` (avoiding ${allergyFilters.join(', ')})`;
     }
+    if (cuisineFilters.length > 0) {
+      statusMsg += ` [cuisine: ${cuisineFilters.join(', ')}]`;
+    }
+    if (eventFilters.length > 0) {
+      statusMsg += ` [event: ${eventFilters.join(', ')}]`;
+    }
+    if (foodTypeFilters.length > 0) {
+      statusMsg += ` [food type: ${foodTypeFilters.join(', ')}]`;
+    }
+    if (selectedComplexity) {
+      statusMsg += ` [${selectedComplexity}]`;
+    }
     statusMsg += '.';
     statusEl.textContent = statusMsg;
   } catch (error) {
@@ -322,20 +532,51 @@ async function searchRecipes(event) {
 
 addCustomIngredientButton.addEventListener('click', addCustomIngredient);
 addCustomDietaryButton.addEventListener('click', addCustomDietary);
+addCustomCuisineButton.addEventListener('click', addCustomCuisine);
+addCustomEventButton.addEventListener('click', addCustomEvent);
+addCustomFoodTypeButton.addEventListener('click', addCustomFoodType);
 addCustomAllergyButton.addEventListener('click', addCustomAllergy);
 addExcludedIngredientButton.addEventListener('click', addExcludedIngredient);
 
+resultsEl.addEventListener('click', (event) => {
+  const button = event.target.closest('.select-recipe-button');
+  if (!button) {
+    return;
+  }
+  const index = Number(button.dataset.selectIndex);
+  selectRecipeAtIndex(index);
+});
+
 addOnEnter(customIngredientInput, addCustomIngredient);
 addOnEnter(customDietaryInput, addCustomDietary);
+addOnEnter(customCuisineInput, addCustomCuisine);
+addOnEnter(customEventInput, addCustomEvent);
+addOnEnter(customFoodTypeInput, addCustomFoodType);
 addOnEnter(customAllergyInput, addCustomAllergy);
 addOnEnter(excludedIngredientInput, addExcludedIngredient);
 
 customIngredientsListEl.addEventListener('click', handleTagRemoval);
 customDietaryListEl.addEventListener('click', handleTagRemoval);
+customCuisinesListEl.addEventListener('click', handleTagRemoval);
+customEventsListEl.addEventListener('click', handleTagRemoval);
+customFoodTypesListEl.addEventListener('click', handleTagRemoval);
 customAllergiesListEl.addEventListener('click', handleTagRemoval);
 excludedIngredientsListEl.addEventListener('click', handleTagRemoval);
 
+clearComplexityButton.addEventListener('click', () => {
+  document.querySelectorAll('input[name="recipe-complexity"]').forEach((input) => {
+    input.checked = false;
+  });
+});
+
+chatForm.addEventListener('submit', sendChatMessage);
+chatClearButton.addEventListener('click', () => {
+  chatHistory = [];
+  renderChatMessages();
+});
+
 form.addEventListener('submit', searchRecipes);
 renderEmpty('Add ingredients and press Search to see recipes.');
+renderChatMessages();
 
 

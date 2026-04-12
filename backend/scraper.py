@@ -79,7 +79,7 @@ def fetch_recipe_details(
     recipe_url: str,
     session: requests.Session,
     timeout: int = DETAIL_TIMEOUT_SECONDS,
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str], Optional[str]]:
     try:
         response = session.get(recipe_url, timeout=timeout)
         response.raise_for_status()
@@ -134,9 +134,43 @@ def fetch_recipe_details(
             else:
                 cook_time = f"{hours}h"
 
-        return ingredients or None, cook_time
+        directions = ""
+        directions_match = re.search(
+            r'<section[^>]*class="[^"]*instructions[^"]*"[^>]*>(.*?)</section>',
+            html_content,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if directions_match:
+            steps = re.findall(r"<li[^>]*>(.*?)</li>", directions_match.group(1), re.IGNORECASE | re.DOTALL)
+            cleaned_steps = [normalize_whitespace(html.unescape(re.sub(r"<[^>]+>", " ", step))) for step in steps]
+            directions = "\n".join([step for step in cleaned_steps if step])
+
+        if not directions:
+            instruction_texts = re.findall(r'"text"\s*:\s*"([^"]+)"', html_content, re.IGNORECASE)
+            if instruction_texts:
+                cleaned_steps = [normalize_whitespace(html.unescape(step)) for step in instruction_texts]
+                directions = "\n".join([step for step in cleaned_steps if step])
+
+        return ingredients or None, cook_time, (directions or None)
     except Exception:
-        return None, None
+        return None, None, None
+
+
+def get_recipe_context(recipe_url: str, timeout: int = DETAIL_TIMEOUT_SECONDS) -> dict[str, Optional[str]]:
+    if cloudscraper is not None:
+        session = cloudscraper.create_scraper(
+            browser={"browser": "chrome", "platform": "windows", "mobile": False}
+        )
+    else:
+        session = requests.Session()
+
+    session.headers.update(HEADERS)
+    ingredients, cook_time, directions = fetch_recipe_details(recipe_url, session, timeout)
+    return {
+        "ingredients": ingredients,
+        "cook_time": cook_time,
+        "directions": directions,
+    }
 
 
 def extract_recipe_candidates(page_html: str, base_url: str) -> List[RecipeResult]:
@@ -194,8 +228,12 @@ def search_allrecipes(
     max_results: int = 10,
     timeout: int = SEARCH_TIMEOUT_SECONDS,
     dietary_restrictions: Optional[List[str]] = None,
+    cuisines: Optional[List[str]] = None,
+    events: Optional[List[str]] = None,
+    food_types: Optional[List[str]] = None,
     allergies: Optional[List[str]] = None,
     excluded_ingredients: Optional[List[str]] = None,
+    complexity_level: Optional[str] = None,
 ) -> List[RecipeResult]:
     return list(
         search_allrecipes_stream(
@@ -203,8 +241,12 @@ def search_allrecipes(
             max_results=max_results,
             timeout=timeout,
             dietary_restrictions=dietary_restrictions,
+            cuisines=cuisines,
+            events=events,
+            food_types=food_types,
             allergies=allergies,
             excluded_ingredients=excluded_ingredients,
+            complexity_level=complexity_level,
         )
     )
 
@@ -214,8 +256,12 @@ def search_allrecipes_stream(
     max_results: int = 10,
     timeout: int = SEARCH_TIMEOUT_SECONDS,
     dietary_restrictions: Optional[List[str]] = None,
+    cuisines: Optional[List[str]] = None,
+    events: Optional[List[str]] = None,
+    food_types: Optional[List[str]] = None,
     allergies: Optional[List[str]] = None,
     excluded_ingredients: Optional[List[str]] = None,
+    complexity_level: Optional[str] = None,
 ) -> Iterator[RecipeResult]:
     if cloudscraper is not None:
         session = cloudscraper.create_scraper(
@@ -230,7 +276,9 @@ def search_allrecipes_stream(
     seen_titles: set[str] = set()
     seen_urls: set[str] = set()
     pages = max(1, (max_results + RESULTS_PER_PAGE - 1) // RESULTS_PER_PAGE)
-    needs_validation = bool(dietary_restrictions or allergies or excluded_ingredients)
+    needs_validation = bool(
+        dietary_restrictions or cuisines or events or food_types or allergies or excluded_ingredients or complexity_level
+    )
 
     for page in range(1, pages + 1):
         remaining_slots = max_results - yielded_count
@@ -256,13 +304,14 @@ def search_allrecipes_stream(
             seen_titles.add(title_key)
 
             if needs_validation:
-                ingredients, cook_time = fetch_recipe_details(item.url, session, timeout)
+                ingredients, cook_time, directions = fetch_recipe_details(item.url, session, timeout)
                 recipe_index = len(page_enriched)
                 page_validation_payload.append(
                     {
                         "index": recipe_index,
                         "title": item.title,
                         "ingredients": ingredients or "",
+                        "directions": directions or "",
                     }
                 )
             else:
@@ -285,8 +334,12 @@ def search_allrecipes_stream(
             for idx, result in validate_recipes_with_gemini_parallel_stream(
                 recipes=page_validation_payload,
                 dietary_restrictions=dietary_restrictions,
+                cuisines=cuisines,
+                events=events,
+                food_types=food_types,
                 allergies=allergies,
                 excluded_ingredients=excluded_ingredients,
+                complexity_level=complexity_level,
             ):
                 if yielded_count >= max_results:
                     return
