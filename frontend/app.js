@@ -235,7 +235,7 @@ async function searchRecipes(event) {
   resultsEl.innerHTML = '<div class="empty-state">Loading results...</div>';
 
   try {
-    const url = new URL('/api/search', window.location.origin);
+    const url = new URL('/api/search/stream', window.location.origin);
     url.searchParams.set('q', finalIngredients);
     url.searchParams.set('max_results', String(maxResults));
     if (dietaryFilters.length > 0) {
@@ -249,13 +249,60 @@ async function searchRecipes(event) {
     }
 
     const response = await fetch(url);
-    const data = await response.json();
 
     if (!response.ok) {
+      const data = await response.json();
+      if (data.code === 'GEMINI_VALIDATION_UNAVAILABLE') {
+        const detailText = String(data.details || '').toLowerCase();
+        if (detailText.includes('across all configured regions')) {
+          throw new Error('Gemini quota is exhausted across all regions right now. Please wait a few seconds and try again.');
+        }
+      }
+
       throw new Error(data.details || data.error || 'Search failed');
     }
 
-    let statusMsg = `Found ${data.count} result${data.count === 1 ? '' : 's'} for "${data.query}"`;
+    if (!response.body) {
+      throw new Error('Streaming is unavailable in this browser.');
+    }
+
+    const decoder = new TextDecoder();
+    const reader = response.body.getReader();
+    const streamedResults = [];
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const payload = line.trim();
+        if (!payload) {
+          continue;
+        }
+
+        const message = JSON.parse(payload);
+        if (message.type === 'item' && message.item) {
+          streamedResults.push(message.item);
+          renderResults(streamedResults);
+          statusEl.textContent = `Streaming ${streamedResults.length} result${streamedResults.length === 1 ? '' : 's'}...`;
+        } else if (message.type === 'error') {
+          throw new Error(message.error || 'Search failed');
+        }
+      }
+    }
+
+    if (!streamedResults.length) {
+      renderEmpty('No results found. Try broader ingredients or fewer filters.');
+    }
+
+    let statusMsg = `Found ${streamedResults.length} result${streamedResults.length === 1 ? '' : 's'} for "${finalIngredients}"`;
     const uniqueDietary = [...new Set(dietaryFilters)];
     if (uniqueDietary.length > 0) {
       statusMsg += ` matching ${uniqueDietary.join(', ')}`;
@@ -265,7 +312,6 @@ async function searchRecipes(event) {
     }
     statusMsg += '.';
     statusEl.textContent = statusMsg;
-    renderResults(data.results || []);
   } catch (error) {
     statusEl.textContent = 'Search failed.';
     renderEmpty(error.message || 'Unable to search recipes right now.', 'error-state');

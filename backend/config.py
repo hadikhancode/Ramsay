@@ -10,11 +10,28 @@ DETAIL_TIMEOUT_SECONDS = 10
 API_MAX_RESULTS_DEFAULT = 10
 API_MAX_RESULTS_MIN = 1
 API_MAX_RESULTS_MAX = 50
+APP_PORT = 5000
 
 GEMINI_PROJECT_ID = "ramsay-493101"
-GEMINI_LOCATION = "global"
-GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
-GEMINI_MAX_WORKERS = 6
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MAX_WORKERS = 10
+GEMINI_LOCATIONS = (
+    "us-central1",
+    "us-east1",
+    "us-east4",
+    "us-west1",
+    "us-west4",
+    "europe-west1",
+    "europe-west2",
+    "europe-west3",
+    "europe-west4",
+    "asia-northeast1",
+    "asia-southeast1",
+    "asia-south1",
+    "australia-southeast1"
+)
+GEMINI_REGION_ROTATION_MAX_ROUNDS = 2
+GEMINI_REGION_ROTATION_DELAY_SECONDS = 3
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
