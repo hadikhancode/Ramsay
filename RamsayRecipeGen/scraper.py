@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import html
 import re
-from typing import List, Optional
+from typing import Iterator, List, Optional
 from urllib.parse import quote_plus, urljoin, urlparse
 
 import requests
@@ -13,7 +13,7 @@ except ImportError:  # pragma: no cover - optional fallback
     cloudscraper = None
 
 from config import BASE_URL, DETAIL_TIMEOUT_SECONDS, HEADERS, RESULTS_PER_PAGE, SEARCH_TIMEOUT_SECONDS
-from gemini_validation import validate_recipes_with_gemini_parallel
+from gemini_validation import validate_recipes_with_gemini_parallel_stream
 from models import RecipeResult
 
 
@@ -197,6 +197,26 @@ def search_allrecipes(
     allergies: Optional[List[str]] = None,
     excluded_ingredients: Optional[List[str]] = None,
 ) -> List[RecipeResult]:
+    return list(
+        search_allrecipes_stream(
+            query=query,
+            max_results=max_results,
+            timeout=timeout,
+            dietary_restrictions=dietary_restrictions,
+            allergies=allergies,
+            excluded_ingredients=excluded_ingredients,
+        )
+    )
+
+
+def search_allrecipes_stream(
+    query: str,
+    max_results: int = 10,
+    timeout: int = SEARCH_TIMEOUT_SECONDS,
+    dietary_restrictions: Optional[List[str]] = None,
+    allergies: Optional[List[str]] = None,
+    excluded_ingredients: Optional[List[str]] = None,
+) -> Iterator[RecipeResult]:
     if cloudscraper is not None:
         session = cloudscraper.create_scraper(
             browser={"browser": "chrome", "platform": "windows", "mobile": False}
@@ -206,16 +226,16 @@ def search_allrecipes(
 
     session.headers.update(HEADERS)
 
-    collected: list[RecipeResult] = []
+    yielded_count = 0
     seen_titles: set[str] = set()
     seen_urls: set[str] = set()
     pages = max(1, (max_results + RESULTS_PER_PAGE - 1) // RESULTS_PER_PAGE)
     needs_validation = bool(dietary_restrictions or allergies or excluded_ingredients)
 
     for page in range(1, pages + 1):
-        remaining_slots = max_results - len(collected)
+        remaining_slots = max_results - yielded_count
         if remaining_slots <= 0:
-            return collected
+            return
 
         url = build_search_url(query, page)
         response = session.get(url, timeout=timeout)
@@ -223,7 +243,7 @@ def search_allrecipes(
 
         candidates = extract_recipe_candidates(response.text, response.url)
         page_validation_payload: list[dict] = []
-        page_enriched: list[tuple[int, RecipeResult]] = []
+        page_enriched: dict[int, RecipeResult] = {}
 
         for item in candidates:
             if len(page_enriched) >= remaining_slots:
@@ -259,24 +279,27 @@ def search_allrecipes(
                 ingredients=ingredients,
                 dietary_info=None,
             )
-            page_enriched.append((len(page_enriched), enriched_item))
+            page_enriched[len(page_enriched)] = enriched_item
 
         if needs_validation and page_validation_payload:
-            batch_results = validate_recipes_with_gemini_parallel(
+            for idx, result in validate_recipes_with_gemini_parallel_stream(
                 recipes=page_validation_payload,
                 dietary_restrictions=dietary_restrictions,
                 allergies=allergies,
                 excluded_ingredients=excluded_ingredients,
-            )
-        else:
-            batch_results = {}
+            ):
+                if yielded_count >= max_results:
+                    return
 
-        for idx, enriched in page_enriched:
-            if needs_validation:
-                is_valid, dietary_info = batch_results.get(idx, (True, None))
+                enriched = page_enriched.get(idx)
+                if not enriched:
+                    continue
+
+                is_valid, dietary_info = result
                 if not is_valid:
                     continue
-                enriched = RecipeResult(
+
+                yield RecipeResult(
                     title=enriched.title,
                     rating=enriched.rating,
                     ratings_count=enriched.ratings_count,
@@ -287,10 +310,10 @@ def search_allrecipes(
                     ingredients=enriched.ingredients,
                     dietary_info=dietary_info,
                 )
-
-            collected.append(enriched)
-            if len(collected) >= max_results:
-                return collected
-
-    return collected
-    
+                yielded_count += 1
+        else:
+            for idx in sorted(page_enriched.keys()):
+                if yielded_count >= max_results:
+                    return
+                yield page_enriched[idx]
+                yielded_count += 1
