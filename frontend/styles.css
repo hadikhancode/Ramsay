@@ -571,7 +571,8 @@ button:disabled {
 }
 
 .recipe-card-link {
-  display: block;
+  display: flex;
+  flex-direction: column;
   color: inherit;
   text-decoration: none;
   transition: color 0.15s ease;
@@ -608,18 +609,32 @@ button:disabled {
 }
 
 .meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 4px;
   color: var(--muted);
   font-size: 0.88rem;
   margin-bottom: 4px;
+  margin-left: auto;
+  text-align: right;
+}
+
+.meta-row {
+  display: block;
+}
+
+.meta-count {
+  min-width: 0;
+}
+
+.meta-cook {
+  text-align: left;
 }
 
 .stars {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   color: #d97706;
 }
 

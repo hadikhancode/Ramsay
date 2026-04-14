@@ -1,7 +1,7 @@
 const form = document.getElementById('search-form');
-const maxResultsInput = document.getElementById('max-results');
+const resultsInput = document.getElementById('results');
 const searchButton = document.getElementById('search-button');
-const resultsEl = document.getElementById('results');
+const resultsEl = document.getElementById('recipe-results');
 const statusEl = document.getElementById('status');
 const customIngredientInput = document.getElementById('custom-ingredient-input');
 const addCustomIngredientButton = document.getElementById('add-custom-ingredient');
@@ -42,7 +42,8 @@ let excludedIngredients = [];
 let latestResults = [];
 let selectedRecipe = null;
 let chatHistory = [];
-let isChatLoading = false;
+const chatHistoryByRecipe = new Map();
+const chatLoadingByRecipe = new Map();
 
 function escapeHtml(value) {
   return value
@@ -234,13 +235,7 @@ function renderResults(results) {
     const hasHalfStar = rating - fullStars >= 0.5;
     const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
 
-    return `
-      <span class="stars" aria-label="${rating} out of 5 stars">
-        ${'★'.repeat(fullStars)}
-        ${hasHalfStar ? '☆' : ''}
-        ${'✩'.repeat(emptyStars)}
-      </span>
-    `;
+    return `<span class="stars" aria-label="${rating} out of 5 stars">${'★'.repeat(fullStars)}${hasHalfStar ? '☆' : ''}${'✩'.repeat(emptyStars)}</span>`;
   }
 
   resultsEl.innerHTML = results
@@ -251,7 +246,7 @@ function renderResults(results) {
         ? `<img class="recipe-image" src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.image_alt || item.title)}" loading="lazy" />`
         : `<div class="recipe-image recipe-image--placeholder">No image</div>`;
 
-      const cookTime = item.cook_time ? `<span>${escapeHtml(item.cook_time)}</span>` : '';
+      const cookTime = item.cook_time ? escapeHtml(item.cook_time) : 'Unknown';
 
       const isSelected = Boolean(selectedRecipe && selectedRecipe.url === item.url);
 
@@ -264,9 +259,9 @@ function renderResults(results) {
           <a class="recipe-card-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer" aria-label="Open ${escapeHtml(item.title)}">
             <h3>${escapeHtml(item.title)}</h3>
             <div class="meta">
-              <span>${rating}</span>
-              <span>${escapeHtml(count)}</span>
-              ${cookTime}
+              <div class="meta-row meta-rating">${rating}</div>
+              <div class="meta-row meta-count">${escapeHtml(count)}</div>
+              <div class="meta-row meta-cook">${cookTime}</div>
             </div>
           </a>
         </article>
@@ -276,6 +271,8 @@ function renderResults(results) {
 }
 
 function renderChatMessages() {
+  const isChatLoading = isSelectedRecipeLoading();
+
   if (!chatHistory.length) {
     chatMessagesEl.innerHTML = isChatLoading
       ? '<div class="chat-bubble chat-bubble--assistant chat-bubble--loading"><span class="loading-inline"><span class="loading-spinner" aria-hidden="true"></span><span>Ramsay is typing...</span></span></div>'
@@ -300,8 +297,32 @@ function renderChatMessages() {
   chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 }
 
+function getSelectedRecipeKey() {
+  if (!selectedRecipe || !selectedRecipe.url) {
+    return null;
+  }
+  return String(selectedRecipe.url).trim() || null;
+}
+
+function saveChatForSelectedRecipe() {
+  const key = getSelectedRecipeKey();
+  if (!key) {
+    return;
+  }
+  chatHistoryByRecipe.set(key, [...chatHistory]);
+}
+
+function isSelectedRecipeLoading() {
+  const key = getSelectedRecipeKey();
+  if (!key) {
+    return false;
+  }
+  return Boolean(chatLoadingByRecipe.get(key));
+}
+
 function resetChatForSelection() {
-  chatHistory = [];
+  const key = getSelectedRecipeKey();
+  chatHistory = key ? [...(chatHistoryByRecipe.get(key) || [])] : [];
   renderChatMessages();
 }
 
@@ -309,6 +330,8 @@ async function selectRecipeAtIndex(index) {
   if (!Number.isInteger(index) || index < 0 || index >= latestResults.length) {
     return;
   }
+
+  saveChatForSelectedRecipe();
 
   const recipe = latestResults[index];
   selectedRecipe = {
@@ -336,6 +359,7 @@ async function selectRecipeAtIndex(index) {
     selectedRecipe.cook_time = data.cook_time || selectedRecipe.cook_time || '';
   } catch (error) {
     chatHistory.push({ role: 'assistant', content: error.message || 'Could not fetch recipe details yet, Chef.' });
+    saveChatForSelectedRecipe();
     renderChatMessages();
   }
 }
@@ -354,11 +378,21 @@ async function sendChatMessage(event) {
     return;
   }
 
+  const recipeKey = getSelectedRecipeKey();
+  if (!recipeKey) {
+    chatHistory.push({ role: 'assistant', content: 'Select one recipe first, Chef.' });
+    renderChatMessages();
+    return;
+  }
+
+  const recipeSnapshot = { ...selectedRecipe };
+
   chatHistory.push({ role: 'user', content: message });
+  saveChatForSelectedRecipe();
   renderChatMessages();
   chatInput.value = '';
   chatSendButton.disabled = true;
-  isChatLoading = true;
+  chatLoadingByRecipe.set(recipeKey, true);
   renderChatMessages();
 
   try {
@@ -367,8 +401,8 @@ async function sendChatMessage(event) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
-        recipe: selectedRecipe,
-        history: chatHistory,
+        recipe: recipeSnapshot,
+        history: chatHistoryByRecipe.get(recipeKey) || chatHistory,
       }),
     });
 
@@ -377,17 +411,27 @@ async function sendChatMessage(event) {
       throw new Error(data.error || data.details || 'Chat failed.');
     }
 
-    isChatLoading = false;
-    chatHistory.push({ role: 'assistant', content: data.reply || 'Spot on, Chef.' });
-    renderChatMessages();
-  } catch (error) {
-    isChatLoading = false;
-    chatHistory.push({ role: 'assistant', content: error.message || 'Kitchen comms are down, Chef.' });
-    renderChatMessages();
-  } finally {
-    if (isChatLoading) {
-      isChatLoading = false;
+    const nextHistory = [...(chatHistoryByRecipe.get(recipeKey) || []), { role: 'assistant', content: data.reply || 'Spot on, Chef.' }];
+    chatHistoryByRecipe.set(recipeKey, nextHistory);
+    chatLoadingByRecipe.set(recipeKey, false);
+    if (getSelectedRecipeKey() === recipeKey) {
+      chatHistory = [...nextHistory];
       renderChatMessages();
+    }
+  } catch (error) {
+    const nextHistory = [...(chatHistoryByRecipe.get(recipeKey) || []), { role: 'assistant', content: error.message || 'Kitchen comms are down, Chef.' }];
+    chatHistoryByRecipe.set(recipeKey, nextHistory);
+    chatLoadingByRecipe.set(recipeKey, false);
+    if (getSelectedRecipeKey() === recipeKey) {
+      chatHistory = [...nextHistory];
+      renderChatMessages();
+    }
+  } finally {
+    if (chatLoadingByRecipe.get(recipeKey)) {
+      chatLoadingByRecipe.set(recipeKey, false);
+      if (getSelectedRecipeKey() === recipeKey) {
+        renderChatMessages();
+      }
     }
     chatSendButton.disabled = false;
   }
@@ -396,7 +440,7 @@ async function sendChatMessage(event) {
 async function searchRecipes(event) {
   event.preventDefault();
 
-  const maxResults = Number(maxResultsInput.value || 10);
+  const results = Number(resultsInput.value || 10);
   const selectedComplexityEl = document.querySelector('input[name="recipe-complexity"]:checked');
   const selectedComplexity = selectedComplexityEl ? selectedComplexityEl.value : '';
 
@@ -447,6 +491,7 @@ async function searchRecipes(event) {
 
   const finalIngredients = combinedIngredients.join(', ');
 
+  saveChatForSelectedRecipe();
   searchButton.disabled = true;
   setStatusMessage('Waiting on Gemini AI...', true);
   renderResultsLoading('Loading results...');
@@ -457,7 +502,7 @@ async function searchRecipes(event) {
   try {
     const url = new URL('/api/search/stream', window.location.origin);
     url.searchParams.set('q', finalIngredients);
-    url.searchParams.set('max_results', String(maxResults));
+    url.searchParams.set('results', String(results));
     if (dietaryFilters.length > 0) {
       url.searchParams.set('dietary_restrictions', dietaryFilters.join(','));
     }
@@ -605,6 +650,11 @@ clearComplexityButton.addEventListener('click', () => {
 
 chatForm.addEventListener('submit', sendChatMessage);
 chatClearButton.addEventListener('click', () => {
+  const key = getSelectedRecipeKey();
+  if (key) {
+    chatHistoryByRecipe.delete(key);
+    chatLoadingByRecipe.set(key, false);
+  }
   chatHistory = [];
   renderChatMessages();
 });

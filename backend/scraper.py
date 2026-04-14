@@ -12,7 +12,7 @@ try:
 except ImportError:  # pragma: no cover - optional fallback
     cloudscraper = None
 
-from config import BASE_URL, DETAIL_TIMEOUT_SECONDS, HEADERS, RESULTS_PER_PAGE, SEARCH_TIMEOUT_SECONDS
+from config import API_MAX_RESULTS, BASE_URL, DETAIL_TIMEOUT_SECONDS, HEADERS, RESULTS_PER_PAGE, SEARCH_TIMEOUT_SECONDS
 from gemini_validation import validate_recipes_with_gemini_parallel_stream
 from models import RecipeResult
 
@@ -272,29 +272,79 @@ def search_allrecipes_stream(
 
     session.headers.update(HEADERS)
 
+    target_results = max(1, min(max_results, API_MAX_RESULTS))
+    candidate_limit = API_MAX_RESULTS
+
     yielded_count = 0
+    candidate_count = 0
+    validation_index = 0
     seen_titles: set[str] = set()
     seen_urls: set[str] = set()
-    pages = max(1, (max_results + RESULTS_PER_PAGE - 1) // RESULTS_PER_PAGE)
     needs_validation = bool(
         dietary_restrictions or cuisines or events or food_types or allergies or excluded_ingredients or complexity_level
     )
 
-    for page in range(1, pages + 1):
-        remaining_slots = max_results - yielded_count
-        if remaining_slots <= 0:
-            return
+    page = 1
+    while yielded_count < target_results and candidate_count < candidate_limit:
 
         url = build_search_url(query, page)
         response = session.get(url, timeout=timeout)
         response.raise_for_status()
 
         candidates = extract_recipe_candidates(response.text, response.url)
-        page_validation_payload: list[dict] = []
-        page_enriched: dict[int, RecipeResult] = {}
+        if not candidates:
+            return
+
+        batch_validation_payload: list[dict] = []
+        batch_enriched: dict[int, RecipeResult] = {}
+        page_added_any = False
+
+        def _flush_validation_batch() -> Iterator[RecipeResult]:
+            nonlocal yielded_count
+            if not batch_validation_payload:
+                return
+
+            for idx, result in validate_recipes_with_gemini_parallel_stream(
+                recipes=batch_validation_payload,
+                dietary_restrictions=dietary_restrictions,
+                cuisines=cuisines,
+                events=events,
+                food_types=food_types,
+                allergies=allergies,
+                excluded_ingredients=excluded_ingredients,
+                complexity_level=complexity_level,
+            ):
+                if yielded_count >= target_results:
+                    return
+
+                enriched = batch_enriched.get(idx)
+                if not enriched:
+                    continue
+
+                is_valid, dietary_info = result
+                if not is_valid:
+                    continue
+
+                yield RecipeResult(
+                    title=enriched.title,
+                    rating=enriched.rating,
+                    ratings_count=enriched.ratings_count,
+                    image_url=enriched.image_url,
+                    image_alt=enriched.image_alt,
+                    url=enriched.url,
+                    cook_time=enriched.cook_time,
+                    ingredients=enriched.ingredients,
+                    dietary_info=dietary_info,
+                )
+                yielded_count += 1
+                if yielded_count >= target_results:
+                    return
+
+            batch_validation_payload.clear()
+            batch_enriched.clear()
 
         for item in candidates:
-            if len(page_enriched) >= remaining_slots:
+            if candidate_count >= candidate_limit:
                 break
 
             title_key = item.title.lower()
@@ -302,11 +352,14 @@ def search_allrecipes_stream(
                 continue
             seen_urls.add(item.url)
             seen_titles.add(title_key)
+            candidate_count += 1
+            page_added_any = True
 
             if needs_validation:
                 ingredients, cook_time, directions = fetch_recipe_details(item.url, session, timeout)
-                recipe_index = len(page_enriched)
-                page_validation_payload.append(
+                recipe_index = validation_index
+                validation_index += 1
+                batch_validation_payload.append(
                     {
                         "index": recipe_index,
                         "title": item.title,
@@ -328,45 +381,27 @@ def search_allrecipes_stream(
                 ingredients=ingredients,
                 dietary_info=None,
             )
-            page_enriched[len(page_enriched)] = enriched_item
-
-        if needs_validation and page_validation_payload:
-            for idx, result in validate_recipes_with_gemini_parallel_stream(
-                recipes=page_validation_payload,
-                dietary_restrictions=dietary_restrictions,
-                cuisines=cuisines,
-                events=events,
-                food_types=food_types,
-                allergies=allergies,
-                excluded_ingredients=excluded_ingredients,
-                complexity_level=complexity_level,
-            ):
-                if yielded_count >= max_results:
+            if needs_validation:
+                batch_enriched[recipe_index] = enriched_item
+                remaining_slots = target_results - yielded_count
+                if len(batch_validation_payload) >= max(1, remaining_slots):
+                    for validated_item in _flush_validation_batch():
+                        yield validated_item
+                    if yielded_count >= target_results:
+                        return
+            else:
+                yield enriched_item
+                yielded_count += 1
+                if yielded_count >= target_results:
                     return
 
-                enriched = page_enriched.get(idx)
-                if not enriched:
-                    continue
+        if not page_added_any:
+            return
 
-                is_valid, dietary_info = result
-                if not is_valid:
-                    continue
+        if needs_validation and batch_validation_payload:
+            for validated_item in _flush_validation_batch():
+                yield validated_item
+            if yielded_count >= target_results:
+                return
 
-                yield RecipeResult(
-                    title=enriched.title,
-                    rating=enriched.rating,
-                    ratings_count=enriched.ratings_count,
-                    image_url=enriched.image_url,
-                    image_alt=enriched.image_alt,
-                    url=enriched.url,
-                    cook_time=enriched.cook_time,
-                    ingredients=enriched.ingredients,
-                    dietary_info=dietary_info,
-                )
-                yielded_count += 1
-        else:
-            for idx in sorted(page_enriched.keys()):
-                if yielded_count >= max_results:
-                    return
-                yield page_enriched[idx]
-                yielded_count += 1
+        page += 1

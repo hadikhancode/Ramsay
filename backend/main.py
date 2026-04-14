@@ -9,9 +9,9 @@ import requests
 
 from config import (
     APP_PORT,
-    API_MAX_RESULTS_DEFAULT,
-    API_MAX_RESULTS_MAX,
-    API_MAX_RESULTS_MIN,
+    API_RESULTS_DEFAULT,
+    API_MAX_RESULTS,
+    API_MIN_RESULTS,
     FEATHERLESS_API_KEY,
     FEATHERLESS_CHAT_URL,
     FEATHERLESS_MODEL,
@@ -86,10 +86,10 @@ def api_search() -> object:
         return jsonify({"error": "Please enter one or more ingredients."}), 400
 
     max_results = _safe_positive_int(
-        request.args.get("max_results"),
-        default=API_MAX_RESULTS_DEFAULT,
-        minimum=API_MAX_RESULTS_MIN,
-        maximum=API_MAX_RESULTS_MAX,
+        request.args.get("results"),
+        default=API_RESULTS_DEFAULT,
+        minimum=API_MIN_RESULTS,
+        maximum=API_MAX_RESULTS,
     )
 
     dietary_restrictions_str = request.args.get("dietary_restrictions", "").strip()
@@ -196,10 +196,10 @@ def api_search_stream() -> object:
         return jsonify({"error": "Please enter one or more ingredients."}), 400
 
     max_results = _safe_positive_int(
-        request.args.get("max_results"),
-        default=API_MAX_RESULTS_DEFAULT,
-        minimum=API_MAX_RESULTS_MIN,
-        maximum=API_MAX_RESULTS_MAX,
+        request.args.get("results"),
+        default=API_RESULTS_DEFAULT,
+        minimum=API_MIN_RESULTS,
+        maximum=API_MAX_RESULTS,
     )
 
     dietary_restrictions_str = request.args.get("dietary_restrictions", "").strip()

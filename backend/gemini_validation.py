@@ -242,16 +242,27 @@ def validate_recipe_with_gemini(
 
         prompt = '\n'.join(prompt_lines)
         recipe_label = _format_recipe_label(recipe_index, recipe_title)
+        compact_ingredients = ', '.join(
+            part.strip() for part in (ingredients or '').splitlines() if part.strip()
+        )
 
         with LOG_LOCK:
             print(f'\n[GEMINI][{recipe_label}]')
-            print(f'[INGREDIENTS][{recipe_label}] {ingredients}')
-            print(f"[FILTERS][{recipe_label}] Allergies: {allergies or 'none'} | Dietary: {dietary_restrictions or 'none'}")
-            print(f"[CUISINE][{recipe_label}] {cuisines or 'none'}")
-            print(f"[EVENT][{recipe_label}] {events or 'none'}")
-            print(f"[FOOD TYPE][{recipe_label}] {food_types or 'none'}")
-            print(f"[EXCLUDED][{recipe_label}] {excluded_ingredients or 'none'}")
-            print(f"[COMPLEXITY][{recipe_label}] {complexity_level or 'none'}")
+            print(f"[INGREDIENTS][{recipe_label}] {compact_ingredients or 'none'}")
+            if allergies:
+                print(f"[ALLERGIES][{recipe_label}] {allergies}")
+            if dietary_restrictions:
+                print(f"[DIETARY][{recipe_label}] {dietary_restrictions}")
+            if cuisines:
+                print(f"[CUISINE][{recipe_label}] {cuisines}")
+            if events:
+                print(f"[EVENT][{recipe_label}] {events}")
+            if food_types:
+                print(f"[FOOD TYPE][{recipe_label}] {food_types}")
+            if excluded_ingredients:
+                print(f"[EXCLUDED][{recipe_label}] {excluded_ingredients}")
+            if complexity_level:
+                print(f"[COMPLEXITY][{recipe_label}] {complexity_level}")
 
         response = _generate_content_with_failover(prompt, recipe_index=recipe_index, recipe_title=recipe_title)
 
