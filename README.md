@@ -13,4 +13,8 @@ A web app that shows recipes based on selected food preferences using Gemini AI 
 4.  run `pip install -r requirements.txt`
 5. run `gcloud auth application-default login` and log in with your Google account that has access to the project from step 1 again (this time there will be checkboxes you have to click)
 6.  rename .env.example to .env and edit the values (mainly the GOOGLE_CLOUD_CONSOLE_PROJECT_ID and FEATHERLESS_API_KEY values)
-7. run `py backend/main.py`
+7. run `python backend/main.py`
+
+---
+
+- **Note: this may be not be possible to run on a server due to AllRecipes' Cloudflare anti-bot measures and there being no free public AllRecipes API**
