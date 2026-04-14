@@ -3,6 +3,27 @@ A web app that shows recipes based on selected food preferences using Gemini AI 
 
 ---
 
+### Features
+- Customize food preferences
+    - Ingredients
+    - Dietary Restrictions
+    - Cuisine
+    - Event
+    - Food Type
+    - Exclude Ingredients
+    - Allergies/Restrictions
+    - Recipe Complexity
+    - Recipe Result Amount
+- Gemini AI checks all recipes to ensure that the recipe matches the selected preferences
+- Featherless AI Chat Bot to ask questions about a recipe to
+
+![Preference options](https://i.luckyc.dev/ramsay1.png)
+![Preference options 2 and results amount](https://i.luckyc.dev/ramsay2.png)
+![Results example](https://i.luckyc.dev/ramsay3.png)
+![Chatbot example](https://i.luckyc.dev/ramsay4.png)
+
+---
+
 ### Instructions to run:
 1. Create a [Google Cloud Console project](https://console.cloud.google.com/)
     - Go to APIs & Services > Enabled APIS & Services
