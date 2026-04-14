@@ -4,3 +4,4 @@ cloudscraper
 flask
 google-genai
 python-dotenv
+gunicorn
