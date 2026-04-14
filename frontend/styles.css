@@ -438,11 +438,35 @@ button:disabled {
   padding: 10px;
   display: grid;
   gap: 8px;
+  align-content: start;
+  justify-items: start;
 }
 
 .chat-empty {
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--muted);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 .chat-bubble {
@@ -452,16 +476,23 @@ button:disabled {
   line-height: 1.4;
   display: grid;
   gap: 4px;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .chat-bubble--user {
   background: #1e3a8a;
   border: 1px solid #3b82f6;
+  justify-self: end;
 }
 
 .chat-bubble--assistant {
   background: #1f2937;
   border: 1px solid #4b5563;
+}
+
+.chat-bubble--loading {
+  color: var(--muted);
 }
 
 .chat-form {
@@ -483,6 +514,12 @@ button:disabled {
 .chat-actions {
   display: flex;
   gap: 8px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .results-header {

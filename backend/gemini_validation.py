@@ -9,7 +9,7 @@ from config import (
     GEMINI_LOCATIONS,
     GEMINI_MAX_WORKERS,
     GEMINI_MODEL,
-    GEMINI_PROJECT_ID,
+    GOOGLE_CLOUD_CONSOLE_PROJECT_ID,
     GEMINI_REGION_ROTATION_DELAY_SECONDS,
     GEMINI_REGION_ROTATION_MAX_ROUNDS,
 )
@@ -74,7 +74,7 @@ def _get_gemini_client(location: str):
         if location in _gemini_clients:
             return _gemini_clients[location]
 
-        client = genai.Client(vertexai=True, project=GEMINI_PROJECT_ID, location=location)
+        client = genai.Client(vertexai=True, project=GOOGLE_CLOUD_CONSOLE_PROJECT_ID, location=location)
         _gemini_clients[location] = client
         return client
 

@@ -2,29 +2,30 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 import requests
 
-from config import APP_PORT, API_MAX_RESULTS_DEFAULT, API_MAX_RESULTS_MAX, API_MAX_RESULTS_MIN, FRONTEND_DIR
+from config import (
+    APP_PORT,
+    API_MAX_RESULTS_DEFAULT,
+    API_MAX_RESULTS_MAX,
+    API_MAX_RESULTS_MIN,
+    FEATHERLESS_API_KEY,
+    FEATHERLESS_CHAT_URL,
+    FEATHERLESS_MODEL,
+    FEATHERLESS_TEMPERATURE,
+    FEATHERLESS_TIMEOUT_SECONDS,
+    FRONTEND_DIR,
+    QUOTA_RETRY_ATTEMPTS,
+    QUOTA_RETRY_DELAY_SECONDS,
+    RAMSAY_PERSONA,
+)
 from gemini_validation import GeminiValidationUnavailableError
 from scraper import get_recipe_context, search_allrecipes, search_allrecipes_stream
 
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
-
-QUOTA_RETRY_DELAY_SECONDS = 3
-QUOTA_RETRY_ATTEMPTS = 2
-FEATHERLESS_CHAT_URL = "https://api.featherless.ai/v1/chat/completions"
-FEATHERLESS_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-RAMSAY_PERSONA = (
-    "You are Gordon Ramsay in MasterChef Junior mode. "
-    "You are high-energy, encouraging, and use British slang like 'spot on' and 'stunning'. "
-    "You never insult the user and always give constructive cooking advice. "
-    "Always refer to the user as 'Chef'."
-)
-
 
 def _safe_positive_int(value: str | None, default: int, minimum: int, maximum: int) -> int:
     try:
@@ -334,8 +335,7 @@ def api_chat_recipe() -> object:
     if not recipe_title:
         return jsonify({"error": "A selected recipe is required before chatting."}), 400
 
-    api_key = os.getenv("FEATHERLESS_API_KEY", "").strip()
-    if not api_key:
+    if not FEATHERLESS_API_KEY:
         return jsonify({"error": "Chat service is not configured."}), 503
 
     system_context = (
@@ -354,15 +354,15 @@ def api_chat_recipe() -> object:
         response = requests.post(
             FEATHERLESS_CHAT_URL,
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {FEATHERLESS_API_KEY}",
                 "Content-Type": "application/json",
             },
             json={
                 "model": FEATHERLESS_MODEL,
                 "messages": messages,
-                "temperature": 0.7,
+                "temperature": FEATHERLESS_TEMPERATURE,
             },
-            timeout=45,
+            timeout=FEATHERLESS_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
         reply = response.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()

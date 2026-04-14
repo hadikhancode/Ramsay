@@ -42,6 +42,7 @@ let excludedIngredients = [];
 let latestResults = [];
 let selectedRecipe = null;
 let chatHistory = [];
+let isChatLoading = false;
 
 function escapeHtml(value) {
   return value
@@ -54,6 +55,23 @@ function escapeHtml(value) {
 
 function renderEmpty(message, kind = 'empty-state') {
   resultsEl.innerHTML = `<div class="${kind}">${escapeHtml(message)}</div>`;
+}
+
+function renderResultsLoading(message = 'Waiting on Gemini AI...') {
+  resultsEl.innerHTML = `
+    <div class="empty-state loading-state">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span>${escapeHtml(message)}</span>
+    </div>
+  `;
+}
+
+function setStatusMessage(message, loading = false) {
+  if (loading) {
+    statusEl.innerHTML = `<span class="loading-inline"><span class="loading-spinner" aria-hidden="true"></span><span>${escapeHtml(message)}</span></span>`;
+    return;
+  }
+  statusEl.textContent = message;
 }
 
 function renderCustomIngredientTags() {
@@ -259,11 +277,13 @@ function renderResults(results) {
 
 function renderChatMessages() {
   if (!chatHistory.length) {
-    chatMessagesEl.innerHTML = '<div class="chat-empty">Select one recipe card, then ask Ramsay about it.</div>';
+    chatMessagesEl.innerHTML = isChatLoading
+      ? '<div class="chat-bubble chat-bubble--assistant chat-bubble--loading"><span class="loading-inline"><span class="loading-spinner" aria-hidden="true"></span><span>Ramsay is typing...</span></span></div>'
+      : '<div class="chat-empty">Select one recipe card, then ask Ramsay about it.</div>';
     return;
   }
 
-  chatMessagesEl.innerHTML = chatHistory
+  const historyHtml = chatHistory
     .map((entry) => `
       <div class="chat-bubble chat-bubble--${entry.role}">
         <strong>${entry.role === 'assistant' ? 'Ramsay' : 'You'}:</strong>
@@ -271,6 +291,12 @@ function renderChatMessages() {
       </div>
     `)
     .join('');
+
+  const loadingHtml = isChatLoading
+    ? '<div class="chat-bubble chat-bubble--assistant chat-bubble--loading"><span class="loading-inline"><span class="loading-spinner" aria-hidden="true"></span><span>Ramsay is typing...</span></span></div>'
+    : '';
+
+  chatMessagesEl.innerHTML = `${historyHtml}${loadingHtml}`;
   chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 }
 
@@ -332,6 +358,8 @@ async function sendChatMessage(event) {
   renderChatMessages();
   chatInput.value = '';
   chatSendButton.disabled = true;
+  isChatLoading = true;
+  renderChatMessages();
 
   try {
     const response = await fetch('/api/chat/recipe', {
@@ -349,12 +377,18 @@ async function sendChatMessage(event) {
       throw new Error(data.error || data.details || 'Chat failed.');
     }
 
+    isChatLoading = false;
     chatHistory.push({ role: 'assistant', content: data.reply || 'Spot on, Chef.' });
     renderChatMessages();
   } catch (error) {
+    isChatLoading = false;
     chatHistory.push({ role: 'assistant', content: error.message || 'Kitchen comms are down, Chef.' });
     renderChatMessages();
   } finally {
+    if (isChatLoading) {
+      isChatLoading = false;
+      renderChatMessages();
+    }
     chatSendButton.disabled = false;
   }
 }
@@ -414,8 +448,8 @@ async function searchRecipes(event) {
   const finalIngredients = combinedIngredients.join(', ');
 
   searchButton.disabled = true;
-  statusEl.textContent = 'Waiting on Gemini AI...';
-  resultsEl.innerHTML = '<div class="empty-state">Loading results...</div>';
+  setStatusMessage('Waiting on Gemini AI...', true);
+  renderResultsLoading('Loading results...');
   selectedRecipe = null;
   selectedRecipeLabelEl.textContent = 'No recipe selected.';
   resetChatForSelection();
@@ -489,7 +523,7 @@ async function searchRecipes(event) {
         if (message.type === 'item' && message.item) {
           streamedResults.push(message.item);
           renderResults(streamedResults);
-          statusEl.textContent = `Streaming ${streamedResults.length} result${streamedResults.length === 1 ? '' : 's'}...`;
+          setStatusMessage(`Streaming ${streamedResults.length} result${streamedResults.length === 1 ? '' : 's'}...`, true);
         } else if (message.type === 'error') {
           throw new Error(message.error || 'Search failed');
         }
@@ -521,9 +555,9 @@ async function searchRecipes(event) {
       statusMsg += ` [${selectedComplexity}]`;
     }
     statusMsg += '.';
-    statusEl.textContent = statusMsg;
+    setStatusMessage(statusMsg);
   } catch (error) {
-    statusEl.textContent = 'Search failed.';
+    setStatusMessage('Search failed.');
     renderEmpty(error.message || 'Unable to search recipes right now.', 'error-state');
   } finally {
     searchButton.disabled = false;
